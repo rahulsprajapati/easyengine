@@ -482,7 +482,7 @@ class Runner {
 
 		// Create the config directory if not exist for file logger to initialize.
 		if ( ! is_dir( EE_CONF_ROOT ) ) {
-			shell_exec('sudo mkdir -p ' . EE_CONF_ROOT);
+			shell_exec('mkdir -p ' . EE_CONF_ROOT);
 		}
 
 		if ( ! is_writable( EE_CONF_ROOT ) ) {
