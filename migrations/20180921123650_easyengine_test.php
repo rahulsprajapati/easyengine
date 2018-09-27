@@ -7,7 +7,7 @@ namespace EE\Migration;
  *
  * @package EE\Migration
  */
-class Blank extends \EE\Migration\Base {
+class Test extends \EE\Migration\Base {
 	public function up() {
 	}
 
