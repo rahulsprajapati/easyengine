@@ -40,32 +40,50 @@ class Executor {
 	 * @return array of available migrations
 	 */
 	private static function get_all_migrations() {
-
+		$migrations = [];
 		$packages_path = scandir( EE_VENDOR_DIR . '/easyengine' );
-		$packages_path = array_slice( $packages_path, 2 );
 
 		// get migrations from packages.
 		if ( ! empty( $packages_path ) ) {
 			foreach ( $packages_path as $package ) {
-				if ( is_file( $package ) ) {
+				if ( '.' === $package || '..' === $package || is_file( $package ) ) {
 					continue;
 				}
 
 				$migration_path = EE_VENDOR_DIR . '/easyengine/' . $package . '/migrations';
 				if ( is_dir( $migration_path ) ) {
-					$migrations[] = array_slice( scandir( $migration_path ), 2 );
+					$files = scandir( $migration_path );
+					if ( \EE\Utils\inside_phar() ) {
+						$migrations[] = $files;
+					} else{
+						$migrations[] = array_slice( $files,2);
+					}
 				}
 			}
 		}
 
 		// get migrations from core.
 		if ( is_dir( EE_ROOT . '/migrations' ) ) {
-			$migrations[] = array_slice( scandir( EE_ROOT . '/migrations' ), 2 );
+			$files = scandir( EE_ROOT . '/migrations' );
+			if ( \EE\Utils\inside_phar() ) {
+				$migrations[] = $files;
+			} else{
+				$migrations[] = array_slice( $files,2);
+			}
 		}
 
-		$migrations = array_merge( ...$migrations );
+		if ( ! empty( $migrations ) ) {
+			$migrations = array_merge( ...$migrations );
+		}
 
-		return self::get_migrations_to_execute( $migrations );
+		$migrations = self::get_migrations_to_execute( $migrations );
+
+		return array_filter( $migrations, function ( $file_name ) {
+			if ( preg_match( '/^\d*[_]([a-zA-Z-]*)[_].*(\.php)$/', $file_name ) ) {
+				return true;
+			}
+			return false;
+		} );
 	}
 
 	/**
@@ -107,7 +125,7 @@ class Executor {
 			] );
 
 			$migration->status = 'complete';
-			EE::log( "Migrated: $migrations[0]" );
+			EE::debug( "Migrated: $migrations[0]" );
 			$remaining_migrations = array_splice( $migrations, 1, count( $migrations ) );
 			self::execute_migration_stack( $remaining_migrations );
 		} catch ( \Throwable $e ) {
@@ -115,10 +133,10 @@ class Executor {
 				EE::error( "Errors were encountered while processing: $migrations[0]\n" . $e->getMessage(), false );
 			}
 			EE::debug( "Reverting: $migrations[0]" );
-			$migration->down();
 			// remove db entry in 'migration' table when reverting migrations.
 			$migrated = Migration::where( 'migration', $migrations[0] );
 			if ( ! empty( $migrated ) ) {
+				$migration->down();
 				$migrated[0]->delete();
 			}
 
@@ -162,6 +180,9 @@ class Executor {
 	private static function get_migration_path( $migration_name ) {
 		preg_match( '/^\d*[_]([a-zA-Z-]*)[_]/', $migration_name, $matches );
 
+		if ( empty( $matches[1] ) ) {
+			return '';
+		}
 		if ( 'easyengine' === $matches[1] ) {
 			return EE_ROOT . "/migrations/$migration_name";
 		} else {
